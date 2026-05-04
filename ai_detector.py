@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-import sys
-
-sys.path.insert(0, '/Users/sakshamkatiyar/Library/Python/3.9/lib/python/site-packages')
 """
 FactShield — classify text with openai-community/roberta-base-openai-detector.
 
@@ -14,6 +11,10 @@ Setup::
 """
 
 from __future__ import annotations
+
+import sys
+
+sys.path.insert(0, '/Users/sakshamkatiyar/Library/Python/3.9/lib/python/site-packages')
 
 MODEL_ID = "openai-community/roberta-base-openai-detector"
 
