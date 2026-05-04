@@ -65,13 +65,14 @@ public class NewsDAO {
     }
 
     /**
-     * Loads demo rows once when the database is newly created (empty table).
+     * Removes stale error rows, then loads demo rows only if the table has no remaining records.
      */
     private void seedSampleIfEmpty() {
         if (connection == null || !isDatabaseAvailable()) {
             return;
         }
         try (Statement st = connection.createStatement()) {
+            st.executeUpdate("DELETE FROM news_analysis WHERE verdict = 'Error' OR score = 0");
             try (ResultSet rs = st.executeQuery("SELECT COUNT(*) AS c FROM news_analysis")) {
                 if (rs.next() && rs.getInt("c") > 0) {
                     return;

@@ -155,7 +155,7 @@ public class FakeNewsDetector {
         String verdict = aiVerdict;
         int confidence = aiConfidence;
 
-        if ("Real".equalsIgnoreCase(verdict) && keywordCount >= 5) {
+        if ("Real".equalsIgnoreCase(verdict) && keywordCount >= 3) {
             verdict = "Fake";
             confidence = 85;
             return new Result(verdict, confidence, keywordCount, matched);
