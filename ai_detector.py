@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import sys
 
+sys.path.insert(0, '/Users/sakshamkatiyar/Library/Python/3.9/lib/python/site-packages')
+
 MODEL_ID = "openai-community/roberta-base-openai-detector"
 
 

@@ -46,7 +46,7 @@ public class FakeNewsDetector {
 
         Process process = null;
         try {
-            ProcessBuilder pb = new ProcessBuilder("python3", "ai_detector.py", newsText);
+            ProcessBuilder pb = new ProcessBuilder("/usr/bin/python3", "ai_detector.py", newsText);
             pb.redirectErrorStream(true);
             // Run with project root as cwd so `ai_detector.py` resolves when starting via run.sh / IDE.
             pb.directory(new File(System.getProperty("user.dir")));
