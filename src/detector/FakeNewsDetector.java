@@ -70,28 +70,16 @@ public class FakeNewsDetector {
 
             System.out.println("[Detector] Python output: " + fullOutput);
 
-            String scriptOutput = null;
-            if (!fullOutput.isEmpty()) {
-                int nl = fullOutput.indexOf('\n');
-                scriptOutput = nl < 0 ? fullOutput.trim() : fullOutput.substring(0, nl).trim();
+            String[] lines = fullOutput.split("\\R");
+            String verdict = "Error";
+            for (int i = lines.length - 1; i >= 0; i--) {
+                String line = lines[i].trim();
+                if (line.equalsIgnoreCase("Real") || line.equalsIgnoreCase("Fake")) {
+                    verdict = line.substring(0, 1).toUpperCase() + line.substring(1).toLowerCase();
+                    break;
+                }
             }
-
-            if (scriptOutput == null) {
-                return "Error";
-            }
-
-            String normalizedOutput = scriptOutput.trim();
-            if (normalizedOutput.isEmpty()) {
-                return "Error";
-            }
-            if ("Real".equalsIgnoreCase(normalizedOutput)) {
-                return "Real";
-            }
-            if ("Fake".equalsIgnoreCase(normalizedOutput)) {
-                return "Fake";
-            }
-
-            return "Error";
+            return verdict;
         } catch (IOException | InterruptedException exception) {
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
