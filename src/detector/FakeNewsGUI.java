@@ -1,5 +1,9 @@
+package detector;
+
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
+
+import dao.NewsDAO;
 
 import javax.swing.*;
 import javax.swing.border.*;
@@ -140,7 +144,14 @@ public class FakeNewsGUI extends JFrame {
         }
 
         String verdict = detector.analyze(text);
-        int score = verdict.equals("REAL") ? 80 : 30;
+        int score;
+        if ("Error".equalsIgnoreCase(verdict)) {
+            score = 0;
+        } else if ("Real".equalsIgnoreCase(verdict)) {
+            score = 80;
+        } else {
+            score = 30;
+        }
 
         String label;
         Color color;
@@ -184,7 +195,7 @@ public class FakeNewsGUI extends JFrame {
     }
 
     private void showHistory() {
-        List<String> history = dao.getHistory();
+        List<NewsDAO.NewsRecord> history = dao.getHistory();
 
         if (history.isEmpty()) {
             JOptionPane.showMessageDialog(this, "No history found.");
@@ -194,8 +205,10 @@ public class FakeNewsGUI extends JFrame {
         JTextArea area = new JTextArea();
         area.setEditable(false);
 
-        for (String h : history) {
-            area.append(h + "\n\n");
+        for (NewsDAO.NewsRecord row : history) {
+            area.append(
+                    "[" + row.analyzedAt + "] " + row.verdict + " (" + row.score + "%)\n"
+                            + row.newsText + "\n\n");
         }
 
         JScrollPane scrollPane = new JScrollPane(area);

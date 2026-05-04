@@ -1,62 +1,106 @@
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+package detector;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+
 /**
- * A simple keyword-based fake news detector.
- * This class analyzes a news article and returns "Real" or "Fake"
- * based on the presence of suspicious words/phrases.
+ * Backend detector for AI-generated (fake) news content.
+ *
+ * <p>This class delegates classification to the external Python script
+ * {@code ai_detector.py} located in the project root directory. The script is expected
+ * to use a Hugging Face model (for example, {@code roberta-base-openai-detector})
+ * and print exactly one label to standard output: {@code Real} or {@code Fake}.</p>
+ *
+ * <p><strong>Setup (one-time):</strong></p>
+ * <ol>
+ *     <li>Install Python 3 and ensure the {@code python} command is available in PATH.</li>
+ *     <li>Install required Python dependencies:
+ *         <pre>pip install transformers torch</pre>
+ *     </li>
+ *     <li>Place {@code ai_detector.py} in the project root.</li>
+ * </ol>
  */
 public class FakeNewsDetector {
 
-    // Set of keywords commonly found in fake/clickbait news
-    private static final Set<String> FAKE_KEYWORDS = new HashSet<>(Arrays.asList(
-        "shocking", "you won't believe", "miracle", "conspiracy",
-        "hoax", "secret", "exposed", "100% true", "they don't want you to know",
-        "cure", "instant", "magic", "revealed", "unbelievable",
-        "what happened next", "click here", "viral", "must see",
-        "banned", "doctors hate this", "weird trick"
-    ));
-
-    // Additional patterns: excessive exclamation marks, ALL CAPS sentences
-    private static final int EXCLAMATION_THRESHOLD = 3;
-    private static final int ALL_CAPS_WORD_THRESHOLD = 5;
-
     /**
-     * Analyzes the given news text and returns a classification.
+     * Analyzes input news text by invoking the external Python AI detector.
      *
-     * @param newsText the full text of the news article
-     * @return "Fake" if suspicious content is detected, otherwise "Real"
+     * <p>Behavior:</p>
+     * <ul>
+     *     <li>Returns {@code Real} when input is {@code null} or blank.</li>
+     *     <li>Runs {@code python ai_detector.py &lt;newsText&gt;} via {@link ProcessBuilder}.</li>
+     *     <li>Reads the first output line from the script and maps:
+     *         {@code Real -> Real}, {@code Fake -> Fake}.</li>
+     *     <li>Returns {@code Error} if output is empty, unrecognized, or if any exception occurs.</li>
+     * </ul>
+     *
+     * @param newsText full news article text to classify
+     * @return {@code Real}, {@code Fake}, or {@code Error} based on script result/execution status
      */
     public String analyze(String newsText) {
         if (newsText == null || newsText.trim().isEmpty()) {
-            return "Real";  // empty input → treat as real (or you can return "Invalid")
+            return "Real";
         }
 
-        String lowerText = newsText.toLowerCase();
+        Process process = null;
+        try {
+            ProcessBuilder pb = new ProcessBuilder("python3", "ai_detector.py", newsText);
+            pb.redirectErrorStream(true);
+            // Run with project root as cwd so `ai_detector.py` resolves when starting via run.sh / IDE.
+            pb.directory(new File(System.getProperty("user.dir")));
+            process = pb.start();
 
-        // 1. Check for fake keywords
-        for (String keyword : FAKE_KEYWORDS) {
-            if (lowerText.contains(keyword)) {
+            String scriptOutput;
+            try (BufferedReader outputReader =
+                         new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                scriptOutput = outputReader.readLine();
+            }
+
+            process.waitFor();
+
+            if (scriptOutput == null) {
+                return "Error";
+            }
+
+            String normalizedOutput = scriptOutput.trim();
+            if (normalizedOutput.isEmpty()) {
+                return "Error";
+            }
+            if ("Real".equalsIgnoreCase(normalizedOutput)) {
+                return "Real";
+            }
+            if ("Fake".equalsIgnoreCase(normalizedOutput)) {
                 return "Fake";
             }
-        }
 
-        // 2. Check for excessive exclamation marks
-        long exclamationCount = lowerText.chars().filter(ch -> ch == '!').count();
-        if (exclamationCount >= EXCLAMATION_THRESHOLD) {
-            return "Fake";
+            return "Error";
+        } catch (IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            exception.printStackTrace();
+            return "Error";
+        } finally {
+            if (process != null) {
+                try {
+                    process.getOutputStream().close();
+                } catch (IOException ignored) {
+                    // Best-effort cleanup
+                }
+                try {
+                    process.getInputStream().close();
+                } catch (IOException ignored) {
+                    // Best-effort cleanup
+                }
+                try {
+                    process.getErrorStream().close();
+                } catch (IOException ignored) {
+                    // Best-effort cleanup
+                }
+                process.destroy();
+            }
         }
-
-        // 3. Check for many ALL CAPS words (often used for sensationalism)
-        String[] words = newsText.split("\\s+");
-        long allCapsCount = Arrays.stream(words)
-                .filter(word -> word.length() > 2 && word.equals(word.toUpperCase()))
-                .count();
-        if (allCapsCount >= ALL_CAPS_WORD_THRESHOLD) {
-            return "Fake";
-        }
-
-        // No suspicious signs found
-        return "Real";
     }
 }
