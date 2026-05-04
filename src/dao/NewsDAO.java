@@ -19,7 +19,7 @@ public class NewsDAO {
     // ============================================================
     // DATABASE CONFIG — change these to match your MySQL setup
     // ============================================================
-    private static final String DB_URL  = "jdbc:mysql://localhost:3306/factshield_db";
+    private static final String DB_URL  = "jdbc:mysql://localhost:3306/fake_news_db";
     private static final String DB_USER = "root";
     private static final String PASS = "";
 
