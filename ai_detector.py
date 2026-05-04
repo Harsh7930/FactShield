@@ -4,7 +4,8 @@ FactShield — classify text with openai-community/roberta-base-openai-detector.
 
 Reads the news string from argv[1] (ProcessBuilder passes it as a single argument).
 Prints exactly one line to stdout: ``Real`` or ``Fake``, matching the model's
-``id2label`` mapping (0 -> Fake, 1 -> Real).
+``id2label`` mapping (0 -> Fake, 1 -> Real). The final line includes the
+confidence score from the pipeline, e.g. ``Fake 0.9873``.
 
 Setup::
     python3 -m pip install transformers torch
@@ -23,7 +24,8 @@ def main() -> None:
     text = sys.argv[1] if len(sys.argv) > 1 else ""
     text = text.strip()
     if not text:
-        print("Real", flush=True)
+        # No model run — report full confidence for trivial empty case
+        print("Real 1.0", flush=True)
         return
 
     from transformers import pipeline
@@ -36,11 +38,12 @@ def main() -> None:
     )
     result = clf(text[:50_000])[0]
     label = str(result.get("label", "")).strip().lower()
+    score = float(result.get("score", 0.0))
 
     if label == "real":
-        print("Real", flush=True)
+        print(f"Real {score}", flush=True)
     elif label == "fake":
-        print("Fake", flush=True)
+        print(f"Fake {score}", flush=True)
     else:
         raise ValueError(f"Unexpected model label: {result!r}")
 
