@@ -52,13 +52,29 @@ public class FakeNewsDetector {
             pb.directory(new File(System.getProperty("user.dir")));
             process = pb.start();
 
-            String scriptOutput;
+            String fullOutput;
             try (BufferedReader outputReader =
                          new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                scriptOutput = outputReader.readLine();
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = outputReader.readLine()) != null) {
+                    if (sb.length() > 0) {
+                        sb.append('\n');
+                    }
+                    sb.append(line);
+                }
+                fullOutput = sb.toString();
             }
 
             process.waitFor();
+
+            System.out.println("[Detector] Python output: " + fullOutput);
+
+            String scriptOutput = null;
+            if (!fullOutput.isEmpty()) {
+                int nl = fullOutput.indexOf('\n');
+                scriptOutput = nl < 0 ? fullOutput.trim() : fullOutput.substring(0, nl).trim();
+            }
 
             if (scriptOutput == null) {
                 return "Error";
