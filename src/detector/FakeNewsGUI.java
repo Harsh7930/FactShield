@@ -21,16 +21,16 @@ import java.util.List;
 public class FakeNewsGUI extends JFrame {
 
     private JTextArea input;
-    private JLabel resultLabel;
+    /** Large verdict strip (Fake / Real / Error / Pending). */
+    private JLabel verdictBadge;
     private JLabel scoreValue;
+    private JLabel threatLevelLabel;
+    private JLabel keywordsLineLabel;
     private JLabel statusLabel;
     private JLabel counterLabel;
 
-    /** Model confidence (0–100); colored by threshold. */
     private JProgressBar confidenceBar;
-    /** Explains bar colors (small gray caption). */
     private JLabel confidenceLegend;
-    /** Shown while {@link SwingWorker} runs the detector off the EDT. */
     private JProgressBar busyBar;
 
     private JButton analyzeButton;
@@ -42,12 +42,14 @@ public class FakeNewsGUI extends JFrame {
 
     private static final int MAX_CHARS = 500;
 
-    /** Green — high model confidence. */
     private static final Color CONF_HIGH = new Color(46, 204, 113);
-    /** Yellow — medium confidence. */
     private static final Color CONF_MED = new Color(241, 196, 15);
-    /** Red — low confidence. */
     private static final Color CONF_LOW = new Color(231, 76, 60);
+
+    private static final Color BADGE_FAKE = new Color(192, 57, 43);
+    private static final Color BADGE_REAL = new Color(39, 174, 96);
+    private static final Color BADGE_ERROR = new Color(127, 140, 141);
+    private static final Color BADGE_PENDING = new Color(149, 165, 166);
 
     public FakeNewsGUI() {
         setTitle("FactShield");
@@ -69,9 +71,6 @@ public class FakeNewsGUI extends JFrame {
         updateStatus("System Ready", CONF_HIGH);
     }
 
-    /**
-     * Single subtitle only — the app name appears once in the frame title bar.
-     */
     private JPanel createHeader() {
         JPanel panel = new JPanel(new BorderLayout());
 
@@ -124,8 +123,12 @@ public class FakeNewsGUI extends JFrame {
         JPanel rightPanel = new JPanel(new BorderLayout());
         rightPanel.setBorder(new TitledBorder("Analysis Result"));
 
-        resultLabel = new JLabel("PENDING", SwingConstants.CENTER);
-        resultLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        verdictBadge = new JLabel("PENDING", SwingConstants.CENTER);
+        verdictBadge.setFont(new Font("Segoe UI", Font.BOLD, 17));
+        verdictBadge.setOpaque(true);
+        verdictBadge.setForeground(Color.WHITE);
+        verdictBadge.setBackground(BADGE_PENDING);
+        verdictBadge.setBorder(new EmptyBorder(14, 18, 14, 18));
 
         busyBar = new JProgressBar();
         busyBar.setIndeterminate(true);
@@ -140,27 +143,41 @@ public class FakeNewsGUI extends JFrame {
         scoreValue = new JLabel("--", SwingConstants.CENTER);
         scoreValue.setFont(new Font("Segoe UI", Font.BOLD, 16));
 
+        threatLevelLabel = new JLabel(" ", SwingConstants.CENTER);
+        threatLevelLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+
+        keywordsLineLabel = new JLabel(" ", SwingConstants.CENTER);
+        keywordsLineLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        keywordsLineLabel.setForeground(new Color(80, 80, 80));
+
         confidenceLegend = new JLabel(
                 "Confidence bar: green (\u226570%), yellow (30-69%), red (<30%)",
                 SwingConstants.CENTER);
         confidenceLegend.setFont(confidenceLegend.getFont().deriveFont(10f));
         confidenceLegend.setForeground(Color.GRAY);
-        resultLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        verdictBadge.setAlignmentX(Component.CENTER_ALIGNMENT);
+        busyBar.setAlignmentX(Component.CENTER_ALIGNMENT);
         scoreValue.setAlignmentX(Component.CENTER_ALIGNMENT);
         confidenceBar.setAlignmentX(Component.CENTER_ALIGNMENT);
+        threatLevelLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        keywordsLineLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         confidenceLegend.setAlignmentX(Component.CENTER_ALIGNMENT);
-        busyBar.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JPanel resultStack = new JPanel();
         resultStack.setLayout(new BoxLayout(resultStack, BoxLayout.Y_AXIS));
-        resultStack.add(resultLabel);
+        resultStack.add(verdictBadge);
         resultStack.add(Box.createVerticalStrut(8));
         resultStack.add(busyBar);
         resultStack.add(Box.createVerticalStrut(8));
         resultStack.add(scoreValue);
         resultStack.add(Box.createVerticalStrut(8));
         resultStack.add(confidenceBar);
+        resultStack.add(Box.createVerticalStrut(6));
+        resultStack.add(threatLevelLabel);
         resultStack.add(Box.createVerticalStrut(4));
+        resultStack.add(keywordsLineLabel);
+        resultStack.add(Box.createVerticalStrut(6));
         resultStack.add(confidenceLegend);
 
         rightPanel.add(resultStack, BorderLayout.CENTER);
@@ -217,9 +234,6 @@ public class FakeNewsGUI extends JFrame {
         return button;
     }
 
-    /**
-     * Runs detection off the EDT so the UI stays responsive; updates widgets in {@code done()}.
-     */
     private void analyze() {
         final String text = input.getText().trim();
 
@@ -265,41 +279,59 @@ public class FakeNewsGUI extends JFrame {
 
     private void applyAnalysisResult(String newsText, FakeNewsDetector.Result result) {
         if ("Error".equalsIgnoreCase(result.verdict)) {
-            resultLabel.setText(
-                    "<html><div style='text-align:center;font-family:Segoe UI;font-size:15px;max-width:420px;"
-                            + "margin:0 auto;'>Analysis unavailable – please check Python AI script.</div></html>");
-            resultLabel.setForeground(Color.GRAY);
+            verdictBadge.setText("ANALYSIS UNAVAILABLE");
+            verdictBadge.setBackground(BADGE_ERROR);
+            verdictBadge.setForeground(Color.WHITE);
             styleConfidenceBarError();
             scoreValue.setText("");
             scoreValue.setForeground(Color.GRAY);
+            threatLevelLabel.setText("Threat level: —");
+            threatLevelLabel.setForeground(Color.GRAY);
+            keywordsLineLabel.setText(" ");
             dao.save(newsText, "Error", 0);
             updateStatus("Analysis unavailable", Color.GRAY);
             return;
         }
 
         if ("Fake".equalsIgnoreCase(result.verdict)) {
-            resultLabel.setText(
-                    "<html><div style='text-align:center;font-family:Segoe UI;font-size:15px;max-width:420px;"
-                            + "margin:0 auto;'><p style='margin:0;'>⚠️ This article is likely AI-generated or may "
-                            + "contain misleading information.</p></div></html>");
+            verdictBadge.setText("FAKE NEWS DETECTED  ⚠️");
+            verdictBadge.setBackground(BADGE_FAKE);
         } else {
-            resultLabel.setText(
-                    "<html><div style='text-align:center;font-family:Segoe UI;font-size:15px;max-width:420px;"
-                            + "margin:0 auto;'><p style='margin:0;'>✅ This article appears to be credible news "
-                            + "content.</p></div></html>");
+            verdictBadge.setText("CREDIBLE NEWS  ✅");
+            verdictBadge.setBackground(BADGE_REAL);
         }
-        resultLabel.setForeground(UIManager.getColor("Label.foreground"));
+        verdictBadge.setForeground(Color.WHITE);
 
         applyConfidenceBarForPercent(result.confidencePercent);
-
         scoreValue.setText("Confidence: " + result.confidencePercent + "%");
         scoreValue.setForeground(confidenceBar.getForeground());
+
+        setThreatLevelLabel(result.confidencePercent);
+
+        if ("Fake".equalsIgnoreCase(result.verdict) && result.keywordMatchCount > 0) {
+            keywordsLineLabel.setText("Red-flag keywords found: " + String.join(", ", result.matchedKeywords));
+            keywordsLineLabel.setForeground(new Color(120, 40, 40));
+        } else {
+            keywordsLineLabel.setText(" ");
+        }
 
         dao.save(newsText, result.verdict, result.confidencePercent);
         updateStatus("Analysis Complete", confidenceBar.getForeground());
     }
 
-    /** Colors the bar by confidence bands; clears error styling from a prior run. */
+    private void setThreatLevelLabel(int confidencePercent) {
+        String band;
+        if (confidencePercent < 40) {
+            band = "Low";
+        } else if (confidencePercent <= 70) {
+            band = "Moderate";
+        } else {
+            band = "High";
+        }
+        threatLevelLabel.setText("Threat level: " + band);
+        threatLevelLabel.setForeground(Color.DARK_GRAY);
+    }
+
     private void applyConfidenceBarForPercent(int percent) {
         confidenceBar.setBorder(null);
         Color c;
@@ -315,7 +347,6 @@ public class FakeNewsGUI extends JFrame {
         confidenceBar.setString(percent + "%");
     }
 
-    /** Error state: gray fill, dashed border, no misleading percentage. */
     private void styleConfidenceBarError() {
         confidenceBar.setValue(0);
         confidenceBar.setForeground(Color.GRAY);
@@ -329,14 +360,18 @@ public class FakeNewsGUI extends JFrame {
 
     private void clearAll() {
         input.setText("");
-        resultLabel.setText("PENDING");
-        resultLabel.setForeground(UIManager.getColor("Label.foreground"));
+        verdictBadge.setText("PENDING");
+        verdictBadge.setBackground(BADGE_PENDING);
+        verdictBadge.setForeground(Color.WHITE);
         confidenceBar.setBorder(null);
         confidenceBar.setValue(0);
         confidenceBar.setString("");
         confidenceBar.setForeground(CONF_HIGH);
         scoreValue.setText("--");
         scoreValue.setForeground(UIManager.getColor("Label.foreground"));
+        threatLevelLabel.setText(" ");
+        keywordsLineLabel.setText(" ");
+        keywordsLineLabel.setForeground(new Color(80, 80, 80));
         confidenceLegend.setForeground(Color.GRAY);
         counterLabel.setText("0 / " + MAX_CHARS);
     }
@@ -415,7 +450,6 @@ public class FakeNewsGUI extends JFrame {
         statusLabel.setForeground(color);
     }
 
-    /** Global shortcuts so analysis works without hunting for buttons. */
     private void setupKeyBindings() {
         JRootPane root = getRootPane();
         InputMap im = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);

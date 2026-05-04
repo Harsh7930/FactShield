@@ -4,55 +4,56 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
- * Backend detector for AI-generated (fake) news content.
- *
- * <p>This class delegates classification to the external Python script
- * {@code ai_detector.py} located in the project root directory. The script is expected
- * to use a Hugging Face model (for example, {@code roberta-base-openai-detector})
- * and print a final line with label and optional confidence, e.g. {@code Fake 0.9873}.</p>
- *
- * <p><strong>Setup (one-time):</strong></p>
- * <ol>
- *     <li>Install Python 3 and ensure the {@code python} command is available in PATH.</li>
- *     <li>Install required Python dependencies:
- *         <pre>pip install transformers torch</pre>
- *     </li>
- *     <li>Place {@code ai_detector.py} in the project root.</li>
- * </ol>
+ * Combines the Python AI classifier with lightweight keyword heuristics for fake news.
  */
 public class FakeNewsDetector {
 
+    private static final String[] FAKE_KEYWORDS = {
+            "shocking",
+            "you won't believe",
+            "miracle",
+            "conspiracy",
+            "secret",
+            "exposed",
+            "100% true",
+            "doctors hate",
+            "cure",
+            "instant",
+            "viral",
+            "click here",
+            "banned"
+    };
+
     /**
-     * Verdict plus model confidence as a percentage (0–100).
+     * Verdict, adjusted confidence, and red-flag keyword hits from the hybrid step.
      */
     public static final class Result {
-        /** {@code Real}, {@code Fake}, or {@code Error}. */
         public final String verdict;
-        /** Confidence 0–100; {@code 0} when unknown or on error. */
         public final int confidencePercent;
+        /** How many red-flag keyword phrases were found (each phrase counts at most once). */
+        public final int keywordMatchCount;
+        /** Keywords matched, in the order defined above. */
+        public final List<String> matchedKeywords;
 
-        public Result(String verdict, int confidencePercent) {
+        public Result(String verdict, int confidencePercent, int keywordMatchCount,
+                List<String> matchedKeywords) {
             this.verdict = verdict;
             this.confidencePercent = confidencePercent;
+            this.keywordMatchCount = keywordMatchCount;
+            this.matchedKeywords = Collections.unmodifiableList(new ArrayList<>(matchedKeywords));
+        }
+
+        /** Shortcut for errors or callers that do not need keyword metadata. */
+        public Result(String verdict, int confidencePercent) {
+            this(verdict, confidencePercent, 0, List.of());
         }
     }
 
-    /**
-     * Analyzes input news text by invoking the external Python AI detector.
-     *
-     * <p>Behavior:</p>
-     * <ul>
-     *     <li>Returns {@code Real} with {@code 0} confidence when input is {@code null} or blank.</li>
-     *     <li>Runs {@code python ai_detector.py &lt;newsText&gt;} via {@link ProcessBuilder}.</li>
-     *     <li>Parses the last output line of the form {@code Real} / {@code Fake} with optional score.</li>
-     *     <li>Returns {@code Error} if output is empty, unrecognized, or if any exception occurs.</li>
-     * </ul>
-     *
-     * @param newsText full news article text to classify
-     * @return verdict and confidence; use {@code new Result("Error", 0)} on failure
-     */
     public Result analyze(String newsText) {
         if (newsText == null || newsText.trim().isEmpty()) {
             return new Result("Real", 0);
@@ -62,7 +63,6 @@ public class FakeNewsDetector {
         try {
             ProcessBuilder pb = new ProcessBuilder("/usr/bin/python3", "ai_detector.py", newsText);
             pb.redirectErrorStream(true);
-            // Run with project root as cwd so `ai_detector.py` resolves when starting via run.sh / IDE.
             pb.directory(new File(System.getProperty("user.dir")));
             process = pb.start();
 
@@ -103,7 +103,7 @@ public class FakeNewsDetector {
                             confidencePercent = 0;
                         }
                     }
-                    return new Result(verdict, confidencePercent);
+                    return applyHybrid(newsText, verdict, confidencePercent);
                 }
             }
             return new Result("Error", 0);
@@ -133,5 +133,38 @@ public class FakeNewsDetector {
                 process.destroy();
             }
         }
+    }
+
+    /**
+     * Counts distinct keywords present in the lower-cased input, then adjusts AI verdict/confidence.
+     */
+    private Result applyHybrid(String newsText, String aiVerdict, int aiConfidence) {
+        if ("Error".equalsIgnoreCase(aiVerdict)) {
+            return new Result("Error", 0);
+        }
+
+        String lower = newsText.toLowerCase();
+        List<String> matched = new ArrayList<>();
+        for (String kw : FAKE_KEYWORDS) {
+            if (lower.contains(kw)) {
+                matched.add(kw);
+            }
+        }
+        int keywordCount = matched.size();
+
+        String verdict = aiVerdict;
+        int confidence = aiConfidence;
+
+        if ("Real".equalsIgnoreCase(verdict) && keywordCount >= 5) {
+            verdict = "Fake";
+            confidence = 85;
+            return new Result(verdict, confidence, keywordCount, matched);
+        }
+
+        if ("Fake".equalsIgnoreCase(verdict) && keywordCount >= 3) {
+            confidence = Math.min(100, (int) Math.round(confidence * 1.5));
+        }
+
+        return new Result(verdict, confidence, keywordCount, matched);
     }
 }

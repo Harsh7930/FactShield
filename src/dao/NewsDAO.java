@@ -24,6 +24,7 @@ public class NewsDAO {
             Class.forName("com.mysql.cj.jdbc.Driver");
             connection = DriverManager.getConnection(DB_URL, DB_USER, PASS);
             createTableIfNotExists();
+            seedSampleIfEmpty();
         } catch (ClassNotFoundException e) {
             System.err.println("[NewsDAO] MySQL driver not found. Add mysql-connector-j.jar to lib/");
         } catch (SQLException e) {
@@ -60,6 +61,43 @@ public class NewsDAO {
                 ");";
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(sql);
+        }
+    }
+
+    /**
+     * Loads demo rows once when the database is newly created (empty table).
+     */
+    private void seedSampleIfEmpty() {
+        if (connection == null || !isDatabaseAvailable()) {
+            return;
+        }
+        try (Statement st = connection.createStatement()) {
+            try (ResultSet rs = st.executeQuery("SELECT COUNT(*) AS c FROM news_analysis")) {
+                if (rs.next() && rs.getInt("c") > 0) {
+                    return;
+                }
+            }
+            st.executeUpdate(
+                    "INSERT INTO news_analysis (news_text, verdict, score, from_cache, analyzed_at) VALUES ("
+                            + "'Scientists discover new treatment for Alzheimer''s disease', 'Real', 92, FALSE, NOW())");
+            st.executeUpdate(
+                    "INSERT INTO news_analysis (news_text, verdict, score, from_cache, analyzed_at) VALUES ("
+                            + "'Local high school team wins national robotics championship', 'Real', 88, FALSE, NOW())");
+            st.executeUpdate(
+                    "INSERT INTO news_analysis (news_text, verdict, score, from_cache, analyzed_at) VALUES ("
+                            + "'City council approves funding for new public park', 'Real', 95, FALSE, NOW())");
+            st.executeUpdate(
+                    "INSERT INTO news_analysis (news_text, verdict, score, from_cache, analyzed_at) VALUES ("
+                            + "'Shocking! You won''t believe what this celebrity did in private - 100% true', "
+                            + "'Fake', 85, FALSE, NOW())");
+            st.executeUpdate(
+                    "INSERT INTO news_analysis (news_text, verdict, score, from_cache, analyzed_at) VALUES ("
+                            + "'Doctors hate this weird trick to lose weight instantly', 'Fake', 91, FALSE, NOW())");
+            st.executeUpdate(
+                    "INSERT INTO news_analysis (news_text, verdict, score, from_cache, analyzed_at) VALUES ("
+                            + "'BREAKING: Government secretly exposed alien conspiracy', 'Fake', 78, FALSE, NOW())");
+        } catch (SQLException e) {
+            System.err.println("[NewsDAO] Sample seed skipped: " + e.getMessage());
         }
     }
 
